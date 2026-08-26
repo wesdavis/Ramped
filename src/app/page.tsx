@@ -49,6 +49,16 @@ export default function Home() {
       return
     }
 
+  
+
+    const timer = setTimeout(async () => {
+      const data = await fetchExerciseProgression(chartExercise)
+      setChartData(data)
+    }, 600) 
+
+    return () => clearTimeout(timer)
+  }, [chartExercise])
+
   // Load the master list of exercises when the charts tab opens
   useEffect(() => {
     if (activeTab === 'charts') {
@@ -60,14 +70,6 @@ export default function Home() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab])
-
-    const timer = setTimeout(async () => {
-      const data = await fetchExerciseProgression(chartExercise)
-      setChartData(data)
-    }, 600) 
-
-    return () => clearTimeout(timer)
-  }, [chartExercise])
 
   // Unified cleanup function for ANY time you back out of a muscle group
   const handleCloseForm = () => {
