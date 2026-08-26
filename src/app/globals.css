@@ -1,0 +1,6 @@
+@import "tailwindcss";
+
+body {
+  /* Optional: Adds a subtle noise texture to the background */
+  background-image: radial-gradient(circle at center, #171717 0%, #0a0a0a 100%);
+}
