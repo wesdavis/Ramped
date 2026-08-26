@@ -147,8 +147,23 @@ export function useWorkouts() {
     }
   }
 
+  const fetchUniqueExercises = async () => {
+    try {
+      const { data, error } = await supabase.from('sets').select('exercise_name')
+      if (error) throw error
+      if (!data) return []
+      
+      // Standardize to lowercase and filter out duplicates
+      const unique = Array.from(new Set(data.map(d => d.exercise_name.toLowerCase())))
+      return unique.sort()
+    } catch (error) {
+      console.error('Failed to fetch exercises:', error)
+      return []
+    }
+  }
+
   // Update your return statement at the bottom to include it:
-  return { logSetToDatabase, fetchLastSession, fetchCalendarHistory, fetchExerciseProgression, isLogging }
+  return { logSetToDatabase, fetchLastSession, fetchCalendarHistory, fetchExerciseProgression, fetchUniqueExercises, isLogging }
 
 
 

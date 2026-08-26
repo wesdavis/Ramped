@@ -20,7 +20,7 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState<'log' | 'calendar' | 'charts'>('log')
   const [selectedGroup, setSelectedGroup] = useState<MuscleGroup | null>(null)
   const [showCardioModal, setShowCardioModal] = useState(false)
-  const { logSetToDatabase, isLogging, fetchLastSession, fetchCalendarHistory, fetchExerciseProgression } = useWorkouts()
+  const { logSetToDatabase, isLogging, fetchLastSession, fetchCalendarHistory, fetchExerciseProgression, fetchUniqueExercises } = useWorkouts()
   
   
   // Set Logger form state
@@ -39,6 +39,8 @@ export default function Home() {
   const [chartExercise, setChartExercise] = useState('')
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [chartData, setChartData] = useState<any[]>([])
+  const [allExercises, setAllExercises] = useState<string[]>([])
+  const [showDropdown, setShowDropdown] = useState(false)
 
   // Watch the chart search input and fetch progression data
   useEffect(() => {
@@ -46,6 +48,18 @@ export default function Home() {
       setChartData([])
       return
     }
+
+  // Load the master list of exercises when the charts tab opens
+  useEffect(() => {
+    if (activeTab === 'charts') {
+      const loadExercises = async () => {
+        const uniqueList = await fetchUniqueExercises()
+        setAllExercises(uniqueList)
+      }
+      loadExercises()
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab])
 
     const timer = setTimeout(async () => {
       const data = await fetchExerciseProgression(chartExercise)
@@ -431,16 +445,40 @@ export default function Home() {
               Progression
             </h2>
 
-            {/* Search Input for the Chart */}
-            <div>
+            {/* Smart Autocomplete Search */}
+            <div className="relative z-20">
               <label className="text-[10px] text-[#64748B] font-black uppercase tracking-widest pl-1">Target Exercise</label>
               <input
                 type="text"
-                placeholder="e.g. chalice squats"
+                placeholder="e.g. seated row"
                 value={chartExercise}
-                onChange={(e) => setChartExercise(e.target.value)}
+                onFocus={() => setShowDropdown(true)}
+                onChange={(e) => {
+                  setChartExercise(e.target.value)
+                  setShowDropdown(true)
+                }}
                 className="w-full bg-[#0D0D0F] border border-[#64748B]/50 rounded-xl p-4 text-lg font-bold text-[#F1F3F4] placeholder:text-[#64748B]/50 focus:outline-none focus:border-[#FF6A2E] focus:ring-1 focus:ring-[#FF6A2E] transition-all"
               />
+              
+              {/* Dropdown Menu */}
+              {showDropdown && chartExercise.trim().length > 0 && (
+                <div className="absolute w-full mt-2 bg-[#0D0D0F] border border-[#64748B]/50 rounded-xl shadow-xl max-h-48 overflow-y-auto">
+                  {allExercises
+                    .filter(ex => ex.includes(chartExercise.toLowerCase()))
+                    .map(ex => (
+                      <button
+                        key={ex}
+                        onClick={() => {
+                          setChartExercise(ex)
+                          setShowDropdown(false)
+                        }}
+                        className="w-full text-left p-4 text-[#F1F3F4] font-bold uppercase hover:bg-neutral-900/80 border-b border-[#64748B]/20 last:border-0 transition-colors"
+                      >
+                        {ex}
+                      </button>
+                    ))}
+                </div>
+              )}
             </div>
 
             {chartExercise.trim().length >= 3 && chartData.length === 0 ? (
@@ -448,7 +486,7 @@ export default function Home() {
             ) : chartData.length > 0 ? (
               <div className="bg-neutral-900/40 border border-[#64748B]/20 rounded-xl p-4 pt-6 h-72">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={chartData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+                  <LineChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                     <XAxis 
                       dataKey="date" 
                       stroke="#64748B" 
@@ -456,12 +494,14 @@ export default function Home() {
                       tickLine={false} 
                       axisLine={false} 
                       dy={10}
+                      minTickGap={30} /* Future-proof: Hides overlapping dates */
                     />
                     <YAxis 
                       stroke="#64748B" 
                       fontSize={10} 
                       tickLine={false} 
                       axisLine={false} 
+                      domain={['dataMin - 10', 'dataMax + 10']} /* Future-proof: Keeps line centered */
                       tickFormatter={(value) => `${value}`}
                     />
                     <Tooltip 
