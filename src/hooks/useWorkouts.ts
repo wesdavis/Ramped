@@ -556,6 +556,36 @@ const COMMON_EXERCISES = Object.values(EXERCISES_BY_GROUP).flat()
     }
   }
 
+  const fetchPersonalRecords = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('sets')
+        .select('muscle_group, exercise_name, weight')
+
+      if (error) throw error
+      if (!data) return {}
+
+      // Group by muscle group, then find the max weight per exercise
+      const prs: Record<string, Record<string, number>> = {}
+
+      data.forEach((set) => {
+        const mg = set.muscle_group
+        const ex = set.exercise_name
+        const wt = set.weight
+
+        if (!prs[mg]) prs[mg] = {}
+        if (!prs[mg][ex] || wt > prs[mg][ex]) {
+          prs[mg][ex] = wt
+        }
+      })
+
+      return prs
+    } catch (error) {
+      console.error('Failed to fetch PRs:', error)
+      return {}
+    }
+  }
+
   // Update your return statement at the bottom to export the new function:
-  return { logSetToDatabase, fetchLastSession, fetchCalendarHistory, fetchExerciseProgression, fetchUniqueExercises, fetchLoggedExercises, deleteSetFromDatabase, isLogging }
+  return { logSetToDatabase, fetchLastSession, fetchCalendarHistory, fetchExerciseProgression, fetchUniqueExercises, fetchLoggedExercises, deleteSetFromDatabase, isLogging, fetchPersonalRecords }
 }

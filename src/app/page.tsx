@@ -26,6 +26,25 @@ export default function Home() {
   const [authLoading, setAuthLoading] = useState(false)
   const [authError, setAuthError] = useState('')
 
+  // Profile State
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
+  
+  const [displayName, setDisplayName] = useState('LIFTER')
+  const [isEditingName, setIsEditingName] = useState(false)
+
+  // Automatically load the avatar and name if they exist in metadata
+  useEffect(() => {
+    if (session?.user?.user_metadata) {
+      if (session.user.user_metadata.avatar_url) {
+        setAvatarUrl(session.user.user_metadata.avatar_url)
+      }
+      if (session.user.user_metadata.display_name) {
+        setDisplayName(session.user.user_metadata.display_name)
+      }
+    }
+  }, [session])
+
   // Watch for logins/logouts
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => setSession(session))
@@ -61,10 +80,11 @@ export default function Home() {
   }
 
   // --- EXISTING APP STATE ---
-  const [activeTab, setActiveTab] = useState<'log' | 'calendar' | 'charts'>('log')
+  const [activeTab, setActiveTab] = useState<'log' | 'calendar' | 'charts' | 'profile'>('log')
   const [selectedGroup, setSelectedGroup] = useState<MuscleGroup | null>(null)
   const [showCardioModal, setShowCardioModal] = useState(false)
-  const { logSetToDatabase, fetchLastSession, fetchCalendarHistory, fetchExerciseProgression, fetchUniqueExercises, fetchLoggedExercises, deleteSetFromDatabase } = useWorkouts()
+  const [personalRecords, setPersonalRecords] = useState<Record<string, Record<string, number>>>({})
+  const { logSetToDatabase, fetchLastSession, fetchCalendarHistory, fetchExerciseProgression, fetchUniqueExercises, fetchLoggedExercises, deleteSetFromDatabase, fetchPersonalRecords } = useWorkouts()
   
   const [exercise, setExercise] = useState('')
   const [weight, setWeight] = useState('')
@@ -117,6 +137,16 @@ export default function Home() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chartExercise, session])
 
+  useEffect(() => {
+    if (activeTab === 'profile' && session) {
+      const loadPRs = async () => {
+        const prs = await fetchPersonalRecords()
+        setPersonalRecords(prs)
+      }
+      loadPRs()
+    }
+  }, [activeTab, session])
+
   const handleCloseForm = () => {
     setSelectedGroup(null)
     setExercise('')
@@ -154,6 +184,65 @@ export default function Home() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, session])
+
+  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    try {
+      setUploadingAvatar(true)
+      if (!event.target.files || event.target.files.length === 0) return
+
+      const file = event.target.files[0]
+      const fileExt = file.name.split('.').pop()
+      const fileName = `${session.user.id}.${fileExt}`
+
+      // 1. Upload the image to the 'avatars' bucket (upsert replaces the old one)
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(fileName, file, { upsert: true })
+
+      if (uploadError) throw uploadError
+
+      // 2. Grab the public URL of the newly uploaded image
+      const { data: { publicUrl } } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(fileName)
+
+      // Append a timestamp to the URL to instantly break the browser cache
+      const freshUrl = `${publicUrl}?t=${Date.now()}`
+
+      // 3. Save this URL to the user's permanent auth profile
+      const { error: updateError } = await supabase.auth.updateUser({
+        data: { avatar_url: freshUrl }
+      })
+
+      if (updateError) throw updateError
+
+      // Update the UI instantly
+      setAvatarUrl(freshUrl)
+    } catch (error) {
+      console.error('Error uploading avatar:', error)
+    } finally {
+      setUploadingAvatar(false)
+    }
+  }
+
+  const handleNameSave = async () => {
+    setIsEditingName(false) // Immediately close the input field
+    
+    // Fallback if they leave it blank
+    const newName = displayName.trim() === '' ? 'LIFTER' : displayName.trim()
+    setDisplayName(newName)
+
+    try {
+      const { error } = await supabase.auth.updateUser({
+        data: { display_name: newName }
+      })
+      if (error) throw error
+    } catch (error) {
+      console.error('Error updating name:', error)
+    }
+  }
+
+
 
   const handleLogSet = async () => {
     if (!exercise || !weight || !reps || !selectedGroup) return
@@ -242,6 +331,8 @@ export default function Home() {
       </main>
     )
   }
+
+  
 
   // --- MAIN APP (ONLY VISIBLE IF LOGGED IN) ---
   return (
@@ -450,11 +541,104 @@ export default function Home() {
             ) : null}
           </section>
         )}
+
+        {activeTab === 'profile' && (
+          <section className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300 pb-8">
+            {/* Header & Avatar */}
+            <div className="flex items-center gap-4 mb-8 border-b border-[#64748B]/30 pb-6">
+              
+              <div className="relative w-20 h-20 rounded-full bg-neutral-900 border-2 border-[#FF6A2E] flex items-center justify-center shadow-lg overflow-hidden group cursor-pointer hover:border-[#2D6D6A] transition-colors">
+                {avatarUrl ? (
+                  <img 
+                    src={avatarUrl} 
+                    alt="Profile Avatar" 
+                    className="w-full h-full object-cover" 
+                  />
+                ) : (
+                  <span className="text-[#64748B] text-xs font-black uppercase group-hover:text-[#F1F3F4] transition-colors">
+                    {uploadingAvatar ? '...' : 'Upload'}
+                  </span>
+                )}
+                
+                {/* Frictionless Hidden File Input */}
+                <input 
+                  type="file" 
+                  accept="image/*"
+                  onChange={handleAvatarUpload}
+                  disabled={uploadingAvatar}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" 
+                />
+              </div>
+
+              <div className="flex-1">
+                {isEditingName ? (
+                  <input
+                    type="text"
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    onBlur={handleNameSave}
+                    onKeyDown={(e) => e.key === 'Enter' && handleNameSave()}
+                    className="bg-transparent border-b-2 border-[#FF6A2E] text-2xl font-black tracking-widest text-[#F1F3F4] uppercase focus:outline-none w-full max-w-[200px]"
+                    autoFocus
+                  />
+                ) : (
+                  <h2 
+                    onClick={() => setIsEditingName(true)}
+                    className="text-2xl font-black tracking-widest text-[#F1F3F4] uppercase cursor-pointer hover:text-[#FF6A2E] transition-colors"
+                    title="Tap to edit name"
+                  >
+                    {displayName}
+                  </h2>
+                )}
+                <p className="text-[#2D6D6A] text-xs font-bold uppercase tracking-widest overflow-hidden text-ellipsis w-full max-w-[200px]">
+                  {session.user.email}
+                </p>
+              </div>
+            </div>
+
+            <h3 className="text-lg font-black tracking-widest text-[#FF6A2E] uppercase">
+              PR Trophy Case
+            </h3>
+
+            {Object.keys(personalRecords).length === 0 ? (
+              <p className="text-[#64748B] text-center text-sm py-8">No records set yet. Time to lift.</p>
+            ) : (
+              <div className="space-y-6">
+                {Object.entries(personalRecords).map(([muscleGroup, exercises]) => (
+                  <div key={muscleGroup} className="bg-neutral-900/40 border border-[#64748B]/20 rounded-xl p-4 shadow-md">
+                    <h4 className="text-xs font-black text-[#2D6D6A] uppercase tracking-widest mb-3">
+                      {muscleGroup}
+                    </h4>
+                    <div className="space-y-3">
+                      {Object.entries(exercises).sort().map(([exercise, weight]) => (
+                        <div key={exercise} className="flex justify-between items-center border-b border-[#64748B]/10 pb-2 last:border-0 last:pb-0">
+                          <span className="text-[#F1F3F4] font-bold text-sm capitalize">{exercise}</span>
+                          <span className="text-[#FF6A2E] font-black text-sm">{weight} <span className="text-[#64748B] text-xs font-bold">lbs</span></span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
       </div>
 
-      <nav className="sticky bottom-0 grid grid-cols-3 gap-1 bg-[#0D0D0F] border-t border-[#64748B]/30 p-2 text-xs font-bold uppercase shadow-lg z-50">
-        {(['log', 'calendar', 'charts'] as const).map((tab) => (
-          <button key={tab} onClick={() => setActiveTab(tab)} className={`py-3 rounded-lg text-center transition-colors ${activeTab === tab ? 'bg-[#FF6A2E] text-[#0D0D0F] font-black' : 'text-[#64748B] hover:text-[#F1F3F4]'}`}>{tab}</button>
+      {/* Navigation */}
+      <nav className="sticky bottom-0 grid grid-cols-4 gap-1 bg-[#0D0D0F] border-t border-[#64748B]/30 p-2 text-[10px] font-bold uppercase shadow-lg z-50">
+        {(['log', 'calendar', 'charts', 'profile'] as const).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`py-3 rounded-lg text-center transition-colors ${
+              activeTab === tab
+                ? 'bg-[#FF6A2E] text-[#0D0D0F] font-black'
+                : 'text-[#64748B] hover:text-[#F1F3F4]'
+            }`}
+          >
+            {tab}
+          </button>
         ))}
       </nav>
     </main>
