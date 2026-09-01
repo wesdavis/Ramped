@@ -288,7 +288,14 @@ export default function Home() {
   if (!session) {
     return (
       <main className="min-h-screen bg-[#0D0D0F] text-[#F1F3F4] flex flex-col items-center justify-center p-6 selection:bg-[#FF6A2E] selection:text-[#0D0D0F]">
-        <Image src="/ramped_logo.png" alt="RAMPED Logo" width={300} height={100} priority className="mb-12 w-auto h-auto object-contain drop-shadow-md scale-[1.5]" />
+        <Image 
+  src="/ramped_logo.png" 
+  alt="RAMPED Logo" 
+  width={300} 
+  height={100} 
+  priority 
+  className="mb-10 w-[80%] max-w-[280px] h-auto object-contain drop-shadow-md mx-auto" 
+/>
         
         <form onSubmit={handleAuth} className="w-full max-w-sm space-y-4 bg-neutral-900/30 p-8 rounded-2xl border border-[#64748B]/30 shadow-2xl">
           <h1 className="text-xl font-black tracking-widest text-[#FF6A2E] uppercase text-center mb-6">Enter Email To Access Your Account</h1>
