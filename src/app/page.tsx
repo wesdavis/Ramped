@@ -11,6 +11,7 @@ import { supabase } from '@/src/lib/supabaseClient' // <--- Added Supabase impor
 const MUSCLE_GROUPS: { id: MuscleGroup; label: string }[] = [
   { id: 'chest', label: 'Chest' },
   { id: 'back', label: 'Back' },
+  { id: 'shoulders', label: 'Shoulders' },
   { id: 'legs', label: 'Legs' },
   { id: 'arms', label: 'Arms' },
   { id: 'core', label: 'Core' },
