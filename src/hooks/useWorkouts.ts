@@ -47,6 +47,57 @@ export function useWorkouts() {
     }
   }
 
+  const logCardioToDatabase = async (minutes: number, distance: number, heartRate: number) => {
+    setIsLogging(true)
+    const localDate = new Date().toLocaleDateString('en-CA') 
+
+    try {
+      const { error } = await supabase
+        .from('cardio_logs')
+        .insert([
+          {
+            duration_minutes: minutes,
+            distance_miles: distance || null,
+            avg_heart_rate: heartRate || null,
+            local_date: localDate,
+          }
+        ])
+
+      if (error) throw error
+      return { success: true }
+    } catch (error) {
+      console.error('Cardio Database Error:', error)
+      return { success: false }
+    } finally {
+      setIsLogging(false)
+    }
+  }
+
+  const fetchCardioStats = async () => {
+  try {
+    const { data, error } = await supabase
+      .from('cardio_logs')
+      .select('duration_minutes, distance_miles, avg_heart_rate')
+
+    if (error) throw error
+    if (!data || data.length === 0) return null
+
+    const totalMiles = data.reduce((sum, log) => sum + (Number(log.distance_miles) || 0), 0)
+    const longestDistance = Math.max(...data.map(d => Number(d.distance_miles) || 0))
+    const longestDuration = Math.max(...data.map(d => Number(d.duration_minutes) || 0))
+
+    return {
+      totalMiles: totalMiles.toFixed(1),
+      longestDistance: longestDistance > 0 ? longestDistance.toFixed(2) : '--',
+      longestDuration: longestDuration > 0 ? `${longestDuration} min` : '--',
+      totalSessions: data.length,
+    }
+  } catch (error) {
+    console.error('Failed to fetch cardio stats:', error)
+    return null
+  }
+}
+
   const fetchLastSession = async (exercise: string, muscleGroup: MuscleGroup) => {
     const today = new Date().toLocaleDateString('en-CA')
 
@@ -627,5 +678,5 @@ const COMMON_EXERCISES = Object.values(EXERCISES_BY_GROUP).flat()
   }
 
   // Update your return statement at the bottom to export the new function:
-  return { logSetToDatabase, fetchLastSession, fetchCalendarHistory, fetchExerciseProgression, fetchUniqueExercises, fetchLoggedExercises, deleteSetFromDatabase, isLogging, fetchPersonalRecords }
+  return { logSetToDatabase, fetchLastSession, fetchCalendarHistory, fetchExerciseProgression, fetchUniqueExercises, fetchLoggedExercises, deleteSetFromDatabase, isLogging, fetchPersonalRecords, logCardioToDatabase, fetchCardioStats }
 }

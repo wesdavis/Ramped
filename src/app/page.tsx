@@ -85,8 +85,10 @@ export default function Home() {
   const [selectedGroup, setSelectedGroup] = useState<MuscleGroup | null>(null)
   const [showCardioModal, setShowCardioModal] = useState(false)
   const [personalRecords, setPersonalRecords] = useState<Record<string, Record<string, number>>>({})
-  const { logSetToDatabase, fetchLastSession, fetchCalendarHistory, fetchExerciseProgression, fetchUniqueExercises, fetchLoggedExercises, deleteSetFromDatabase, fetchPersonalRecords } = useWorkouts()
-  
+  const { logSetToDatabase, fetchLastSession, fetchCalendarHistory, fetchExerciseProgression, fetchUniqueExercises, fetchLoggedExercises, deleteSetFromDatabase, fetchPersonalRecords, logCardioToDatabase, fetchCardioStats } = useWorkouts()
+  const [cardioStats, setCardioStats] = useState<any>(null)
+  const [cardioHistory, setCardioHistory] = useState<any[]>([])
+
   const [exercise, setExercise] = useState('')
   const [weight, setWeight] = useState('')
   const [reps, setReps] = useState('')
@@ -176,15 +178,21 @@ export default function Home() {
   }, [exercise, selectedGroup, session])
 
   useEffect(() => {
-    if (activeTab === 'calendar' && session) {
-      const loadHistory = async () => {
-        const data = await fetchCalendarHistory()
-        if (data) setCalendarHistory(data)
-      }
-      loadHistory()
+  if (activeTab === 'calendar' && session) {
+    const loadHistory = async () => {
+      const data = await fetchCalendarHistory()
+      if (data) setCalendarHistory(data)
+      
+      // Fetch cardio records
+      const { data: cardioData } = await supabase
+        .from('cardio_logs')
+        .select('*')
+        .order('created_at', { ascending: true })
+      if (cardioData) setCardioHistory(cardioData)
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, session])
+    loadHistory()
+  }
+}, [activeTab, session])
 
   const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     try {
@@ -340,6 +348,19 @@ export default function Home() {
     )
   }
 
+  const handleLogCardio = async () => {
+    if (!minutes) return 
+
+    const result = await logCardioToDatabase(Number(minutes), Number(distance), Number(heartRate))
+
+    if (result.success) {
+      setShowCardioModal(false)
+      setMinutes('')
+      setDistance('')
+      setHeartRate('')
+    }
+  }
+
   
 
   // --- MAIN APP (ONLY VISIBLE IF LOGGED IN) ---
@@ -381,9 +402,9 @@ export default function Home() {
                 <input type="number" value={heartRate} onChange={(e) => setHeartRate(e.target.value)} className="w-full bg-[#0D0D0F] border border-[#64748B]/50 rounded-lg p-3 text-[#F1F3F4] focus:outline-none focus:border-[#2D6D6A] mt-1 transition-colors" />
               </div>
             </div>
-            <button onClick={() => setShowCardioModal(false)} className="w-full bg-[#2D6D6A] hover:bg-[#2D6D6A]/80 text-[#F1F3F4] font-extrabold py-3 rounded-xl uppercase transition-colors">
-              Save Cardio
-            </button>
+            <button onClick={handleLogCardio} className="w-full bg-[#2D6D6A] hover:bg-[#2D6D6A]/80 text-[#F1F3F4] font-extrabold py-3 rounded-xl uppercase transition-colors">
+  Save Cardio
+</button>
           </div>
         </div>
       )}
@@ -505,6 +526,47 @@ export default function Home() {
                                     <span className="text-[#F1F3F4] font-bold">{set.weight} <span className="text-[#64748B] font-normal">lbs</span> × {set.reps}</span>
                                   </div>
                                 ))}
+
+                                {/* Day Container Card */}
+<div className="bg-neutral-900/40 border border-[#64748B]/20 rounded-xl overflow-hidden">
+  
+  {/* 1. Existing lifting sets */}
+  {Array.from(new Set(daySets.map(s => s.exercise_name))).map(exercise => {
+    const exerciseSets = daySets.filter(s => s.exercise_name === exercise)
+    return (
+      <div key={exercise as string} className="border-b border-[#64748B]/10 last:border-0 p-4">
+        {/* ... existing exercise sets rendering ... */}
+      </div>
+    )
+  })}
+
+  {/* 2. INSERT CARDIO HERE: Filter cardio matching this specific date */}
+  {cardioHistory
+    .filter((c) => c.local_date === date)
+    .map((cardio) => (
+      <div 
+        key={cardio.id} 
+        className="border-t border-[#64748B]/20 p-4 bg-[#2D6D6A]/10 flex items-center justify-between"
+      >
+        <div className="flex items-center gap-2">
+          <Heart className="w-4 h-4 text-[#2D6D6A] fill-[#2D6D6A]/30" />
+          <span className="text-sm font-black text-[#F1F3F4] uppercase tracking-wider">Cardio</span>
+        </div>
+        <div className="text-xs font-bold text-[#64748B]">
+          <span className="text-[#F1F3F4] font-black">{cardio.duration_minutes} min</span>
+          {cardio.distance_miles && (
+            <> • <span className="text-[#2D6D6A]">{cardio.distance_miles} mi</span></>
+          )}
+          {cardio.avg_heart_rate && (
+            <> • <span className="text-[#FF6A2E]">{cardio.avg_heart_rate} bpm</span></>
+          )}
+        </div>
+      </div>
+    ))}
+
+</div>
+
+
                               </div>
                             </div>
                           )
@@ -608,6 +670,7 @@ export default function Home() {
               PR Trophy Case
             </h3>
 
+
             {Object.keys(personalRecords).length === 0 ? (
               <p className="text-[#64748B] text-center text-sm py-8">No records set yet. Time to lift.</p>
             ) : (
@@ -632,6 +695,30 @@ export default function Home() {
           </section>
         )}
       </div>
+
+      <div className="bg-neutral-900/40 border border-[#2D6D6A]/30 rounded-xl p-4 shadow-md mt-6">
+  <div className="flex justify-between items-center mb-4">
+    <h3 className="text-xs font-black text-[#2D6D6A] uppercase tracking-widest flex items-center gap-2">
+      <Heart className="w-4 h-4 fill-[#2D6D6A]" /> Cardio Engine
+    </h3>
+    <span className="text-[10px] font-bold text-[#64748B] uppercase">{cardioStats?.totalSessions || 0} Sessions</span>
+  </div>
+
+  <div className="grid grid-cols-3 gap-2 text-center">
+    <div className="bg-[#0D0D0F] p-3 rounded-lg border border-[#64748B]/20">
+      <p className="text-[10px] font-black text-[#64748B] uppercase tracking-wider">Total Miles</p>
+      <p className="text-lg font-black text-[#F1F3F4] mt-1">{cardioStats?.totalMiles || 0}</p>
+    </div>
+    <div className="bg-[#0D0D0F] p-3 rounded-lg border border-[#64748B]/20">
+      <p className="text-[10px] font-black text-[#64748B] uppercase tracking-wider">Max Dist</p>
+      <p className="text-lg font-black text-[#FF6A2E] mt-1">{cardioStats?.longestDistance || '--'}</p>
+    </div>
+    <div className="bg-[#0D0D0F] p-3 rounded-lg border border-[#64748B]/20">
+      <p className="text-[10px] font-black text-[#64748B] uppercase tracking-wider">Longest</p>
+      <p className="text-lg font-black text-[#2D6D6A] mt-1">{cardioStats?.longestDuration || '--'}</p>
+    </div>
+  </div>
+</div>
 
       {/* Navigation */}
       <nav className="sticky bottom-0 grid grid-cols-4 gap-1 bg-[#0D0D0F] border-t border-[#64748B]/30 p-2 text-[10px] font-bold uppercase shadow-lg z-50">
