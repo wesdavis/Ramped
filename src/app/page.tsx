@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { MuscleGroup } from '@/src/types/database'
-import { Heart, Trash2, LogOut } from 'lucide-react'
+import { Heart, Trash2, LogOut, X, ChevronRight, ChevronDown } from 'lucide-react'
 import Image from 'next/image'
 import { useWorkouts } from '@/src/hooks/useWorkouts'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
@@ -82,6 +82,7 @@ export default function Home() {
 
   // --- EXISTING APP STATE ---
   const [activeTab, setActiveTab] = useState<'log' | 'calendar' | 'charts' | 'profile'>('log')
+  const [expandedDate, setExpandedDate] = useState<string | null>(null)
   const [selectedGroup, setSelectedGroup] = useState<MuscleGroup | null>(null)
   const [showCardioModal, setShowCardioModal] = useState(false)
   const [personalRecords, setPersonalRecords] = useState<Record<string, Record<string, number>>>({})
@@ -295,6 +296,12 @@ export default function Home() {
   const [heartRate, setHeartRate] = useState('')
   const [lastSessionInfo, setLastSessionInfo] = useState<{ date: string, weight: number, reps: number, sets: number } | null>(null)
   const [showHistoryAlert, setShowHistoryAlert] = useState(false)
+
+
+  const handleJumpToChart = (exerciseName: string) => {
+  setChartExercise(exerciseName)
+  setActiveTab('charts')
+}
   
   // --- AUTHENTICATION GATE ---
   if (!session) {
@@ -447,16 +454,40 @@ export default function Home() {
 
                 <div className="space-y-4">
                   <div className="relative z-30">
-                    <label className="text-[10px] text-[#64748B] font-black uppercase tracking-widest pl-1">Exercise Name</label>
-                    <input type="text" placeholder="e.g. Incline Dumbbell Press" value={exercise} onFocus={() => setShowLogDropdown(true)} onChange={(e) => { setExercise(e.target.value); setShowLogDropdown(true); }} className="w-full bg-[#0D0D0F] border border-[#64748B]/50 rounded-xl p-4 text-lg font-bold text-[#F1F3F4] placeholder:text-[#64748B]/50 focus:outline-none focus:border-[#FF6A2E] focus:ring-1 focus:ring-[#FF6A2E] transition-all" />
-                    {showLogDropdown && (
-                      <div className="absolute w-full mt-2 bg-[#0D0D0F] border border-[#64748B]/50 rounded-xl shadow-xl max-h-48 overflow-y-auto">
-                        {logExercises.filter(ex => exercise === '' || ex.includes(exercise.toLowerCase())).map(ex => (
-                          <button key={ex} onClick={() => { setExercise(ex); setShowLogDropdown(false); }} className="w-full text-left p-4 text-[#F1F3F4] font-bold uppercase hover:bg-neutral-900/80 border-b border-[#64748B]/20 last:border-0 transition-colors">{ex}</button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+  <label className="text-[10px] text-[#64748B] font-black uppercase tracking-widest pl-1">Exercise Name</label>
+  <div className="relative mt-1">
+    <input 
+      type="text" 
+      placeholder="e.g. Incline Dumbbell Press" 
+      value={exercise} 
+      onFocus={() => setShowLogDropdown(true)} 
+      onChange={(e) => { setExercise(e.target.value); setShowLogDropdown(true); }} 
+      className="w-full bg-[#0D0D0F] border border-[#64748B]/50 rounded-xl p-4 pr-12 text-lg font-bold text-[#F1F3F4] placeholder:text-[#64748B]/50 focus:outline-none focus:border-[#FF6A2E] focus:ring-1 focus:ring-[#FF6A2E] transition-all" 
+    />
+    {exercise && (
+      <button 
+        onClick={() => { setExercise(''); setShowLogDropdown(false); setShowHistoryAlert(false); }} 
+        className="absolute right-4 top-1/2 -translate-y-1/2 text-[#64748B] hover:text-[#FF6A2E] transition-colors"
+      >
+        <X className="w-6 h-6" />
+      </button>
+    )}
+  </div>
+  
+  {showLogDropdown && (
+    <div className="absolute w-full mt-2 bg-[#0D0D0F] border border-[#64748B]/50 rounded-xl shadow-xl max-h-48 overflow-y-auto">
+      {logExercises.filter(ex => exercise === '' || ex.includes(exercise.toLowerCase())).map(ex => (
+        <button 
+          key={ex} 
+          onClick={() => { setExercise(ex); setShowLogDropdown(false); }} 
+          className="w-full text-left p-4 text-[#F1F3F4] font-bold uppercase hover:bg-neutral-900/80 border-b border-[#64748B]/20 last:border-0 transition-colors"
+        >
+          {ex}
+        </button>
+      ))}
+    </div>
+  )}
+</div>
 
                   {showHistoryAlert && lastSessionInfo && (
                     <div className="bg-[#2D6D6A]/10 border border-[#2D6D6A]/50 rounded-xl p-4 flex justify-between items-center animate-in fade-in slide-in-from-top-2 shadow-lg relative z-20">
@@ -509,64 +540,81 @@ export default function Home() {
             {calendarHistory.length === 0 ? (
               <p className="text-[#64748B] text-center text-sm py-8">No workouts logged yet.</p>
             ) : (
-              <div className="space-y-8">
-                {Array.from(new Set(calendarHistory.map(set => set.local_date))).map(date => {
-                  const daySets = calendarHistory.filter(s => s.local_date === date)
-                  const dateHeader = new Date(date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })
-                  return (
-                    <div key={date as string} className="space-y-3">
-                      <h3 className="text-xs font-black text-[#2D6D6A] uppercase tracking-widest sticky top-0 bg-[#0D0D0F] py-2 z-10">{dateHeader}</h3>
-                      
-                      {/* Day Container Card */}
-                      <div className="bg-neutral-900/40 border border-[#64748B]/20 rounded-xl overflow-hidden">
-                        
-                        {/* 1. Lifting Sets */}
-                        {Array.from(new Set(daySets.map(s => s.exercise_name))).map(exercise => {
-                          const exerciseSets = daySets.filter(s => s.exercise_name === exercise)
-                          return (
-                            <div key={exercise as string} className="border-b border-[#64748B]/10 last:border-0 p-4">
-                              <h4 className="text-[#F1F3F4] font-bold uppercase mb-2 text-sm flex items-center justify-between">{exercise as string}<span className="text-[#64748B] text-[10px]">{exerciseSets.length} sets</span></h4>
-                              <div className="space-y-1">
-                                {exerciseSets.map((set, idx) => (
-                                  <div key={set.id} className="flex justify-between text-sm">
-                                    <span className="text-[#64748B] font-medium">Set {idx + 1}</span>
-                                    <span className="text-[#F1F3F4] font-bold">{set.weight} <span className="text-[#64748B] font-normal">lbs</span> × {set.reps}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )
-                        })}
+              <div className="space-y-3">
+  {Array.from(new Set(calendarHistory.map(set => set.local_date))).map(date => {
+    const daySets = calendarHistory.filter(s => s.local_date === date)
+    const dayCardio = cardioHistory.filter(c => c.local_date === date)
+    
+    // Dynamically build the summary: e.g. "chest - legs - cardio"
+    const activeGroups = Array.from(new Set(daySets.map(s => s.muscle_group)))
+    if (dayCardio.length > 0) activeGroups.push('cardio')
+    const summaryText = activeGroups.join(' - ')
+    
+    const dateHeader = new Date(date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })
+    const isExpanded = expandedDate === date
 
-                        {/* 2. Cardio Sessions for this specific date */}
-                        {cardioHistory
-                          .filter((c) => c.local_date === date)
-                          .map((cardio) => (
-                            <div 
-                              key={cardio.id} 
-                              className="border-t border-[#64748B]/20 p-4 bg-[#2D6D6A]/10 flex items-center justify-between"
-                            >
-                              <div className="flex items-center gap-2">
-                                <Heart className="w-4 h-4 text-[#2D6D6A] fill-[#2D6D6A]/30" />
-                                <span className="text-sm font-black text-[#F1F3F4] uppercase tracking-wider">Cardio</span>
-                              </div>
-                              <div className="text-xs font-bold text-[#64748B]">
-                                <span className="text-[#F1F3F4] font-black">{cardio.duration_minutes} min</span>
-                                {cardio.distance_miles && (
-                                  <> • <span className="text-[#2D6D6A]">{cardio.distance_miles} mi</span></>
-                                )}
-                                {cardio.avg_heart_rate && (
-                                  <> • <span className="text-[#FF6A2E]">{cardio.avg_heart_rate} bpm</span></>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-
+    return (
+      <div key={date as string} className="bg-neutral-900/40 border border-[#64748B]/20 rounded-xl overflow-hidden transition-all">
+        {/* Clickable Header */}
+        <button 
+          onClick={() => setExpandedDate(isExpanded ? null : (date as string))}
+          className="w-full flex items-center justify-between p-4 bg-[#0D0D0F] hover:bg-neutral-900/80 transition-colors"
+        >
+          <div className="flex flex-col items-start">
+            <h3 className="text-sm font-black text-[#2D6D6A] uppercase tracking-widest">{dateHeader}</h3>
+            <span className="text-[10px] font-bold text-[#64748B] uppercase tracking-wider">{summaryText}</span>
+          </div>
+          {isExpanded ? <ChevronDown className="w-5 h-5 text-[#FF6A2E]" /> : <ChevronRight className="w-5 h-5 text-[#64748B]" />}
+        </button>
+        
+        {/* The Foldable Content */}
+        {isExpanded && (
+          <div className="border-t border-[#64748B]/20">
+            {/* 1. Lifting Sets */}
+            {Array.from(new Set(daySets.map(s => s.exercise_name))).map(exercise => {
+              const exerciseSets = daySets.filter(s => s.exercise_name === exercise)
+              return (
+                <div key={exercise as string} className="border-b border-[#64748B]/10 last:border-0 p-4">
+                  {/* Clickable Exercise Name for Chart Jump */}
+                  <h4 
+                    onClick={() => handleJumpToChart(exercise as string)}
+                    className="text-[#F1F3F4] font-bold uppercase mb-2 text-sm flex items-center justify-between cursor-pointer hover:text-[#FF6A2E] transition-colors group"
+                  >
+                    {exercise as string}
+                    <span className="text-[#64748B] text-[10px] group-hover:text-[#FF6A2E]">{exerciseSets.length} sets ↗</span>
+                  </h4>
+                  <div className="space-y-1">
+                    {exerciseSets.map((set, idx) => (
+                      <div key={set.id} className="flex justify-between text-sm">
+                        <span className="text-[#64748B] font-medium">Set {idx + 1}</span>
+                        <span className="text-[#F1F3F4] font-bold">{set.weight} <span className="text-[#64748B] font-normal">lbs</span> × {set.reps}</span>
                       </div>
-                    </div>
-                  )
-                })}
+                    ))}
+                  </div>
+                </div>
+              )
+            })}
+
+            {/* 2. Cardio Sessions */}
+            {dayCardio.map((cardio) => (
+              <div key={cardio.id} className="border-t border-[#64748B]/20 p-4 bg-[#2D6D6A]/10 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Heart className="w-4 h-4 text-[#2D6D6A] fill-[#2D6D6A]/30" />
+                  <span className="text-sm font-black text-[#F1F3F4] uppercase tracking-wider">Cardio</span>
+                </div>
+                <div className="text-xs font-bold text-[#64748B]">
+                  <span className="text-[#F1F3F4] font-black">{cardio.duration_minutes} min</span>
+                  {cardio.distance_miles && <> • <span className="text-[#2D6D6A]">{cardio.distance_miles} mi</span></>}
+                  {cardio.avg_heart_rate && <> • <span className="text-[#FF6A2E]">{cardio.avg_heart_rate} bpm</span></>}
+                </div>
               </div>
+            ))}
+          </div>
+        )}
+      </div>
+    )
+  })}
+</div>
             )}
           </section>
         )}
