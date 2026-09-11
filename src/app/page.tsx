@@ -142,11 +142,14 @@ export default function Home() {
 
   useEffect(() => {
     if (activeTab === 'profile' && session) {
-      const loadPRs = async () => {
+      const loadProfileData = async () => {
         const prs = await fetchPersonalRecords()
         setPersonalRecords(prs)
+        
+        const stats = await fetchCardioStats()
+        if (stats) setCardioStats(stats)
       }
-      loadPRs()
+      loadProfileData()
     }
   }, [activeTab, session])
 
@@ -513,7 +516,11 @@ export default function Home() {
                   return (
                     <div key={date as string} className="space-y-3">
                       <h3 className="text-xs font-black text-[#2D6D6A] uppercase tracking-widest sticky top-0 bg-[#0D0D0F] py-2 z-10">{dateHeader}</h3>
+                      
+                      {/* Day Container Card */}
                       <div className="bg-neutral-900/40 border border-[#64748B]/20 rounded-xl overflow-hidden">
+                        
+                        {/* 1. Lifting Sets */}
                         {Array.from(new Set(daySets.map(s => s.exercise_name))).map(exercise => {
                           const exerciseSets = daySets.filter(s => s.exercise_name === exercise)
                           return (
@@ -526,51 +533,35 @@ export default function Home() {
                                     <span className="text-[#F1F3F4] font-bold">{set.weight} <span className="text-[#64748B] font-normal">lbs</span> × {set.reps}</span>
                                   </div>
                                 ))}
-
-                                {/* Day Container Card */}
-<div className="bg-neutral-900/40 border border-[#64748B]/20 rounded-xl overflow-hidden">
-  
-  {/* 1. Existing lifting sets */}
-  {Array.from(new Set(daySets.map(s => s.exercise_name))).map(exercise => {
-    const exerciseSets = daySets.filter(s => s.exercise_name === exercise)
-    return (
-      <div key={exercise as string} className="border-b border-[#64748B]/10 last:border-0 p-4">
-        {/* ... existing exercise sets rendering ... */}
-      </div>
-    )
-  })}
-
-  {/* 2. INSERT CARDIO HERE: Filter cardio matching this specific date */}
-  {cardioHistory
-    .filter((c) => c.local_date === date)
-    .map((cardio) => (
-      <div 
-        key={cardio.id} 
-        className="border-t border-[#64748B]/20 p-4 bg-[#2D6D6A]/10 flex items-center justify-between"
-      >
-        <div className="flex items-center gap-2">
-          <Heart className="w-4 h-4 text-[#2D6D6A] fill-[#2D6D6A]/30" />
-          <span className="text-sm font-black text-[#F1F3F4] uppercase tracking-wider">Cardio</span>
-        </div>
-        <div className="text-xs font-bold text-[#64748B]">
-          <span className="text-[#F1F3F4] font-black">{cardio.duration_minutes} min</span>
-          {cardio.distance_miles && (
-            <> • <span className="text-[#2D6D6A]">{cardio.distance_miles} mi</span></>
-          )}
-          {cardio.avg_heart_rate && (
-            <> • <span className="text-[#FF6A2E]">{cardio.avg_heart_rate} bpm</span></>
-          )}
-        </div>
-      </div>
-    ))}
-
-</div>
-
-
                               </div>
                             </div>
                           )
                         })}
+
+                        {/* 2. Cardio Sessions for this specific date */}
+                        {cardioHistory
+                          .filter((c) => c.local_date === date)
+                          .map((cardio) => (
+                            <div 
+                              key={cardio.id} 
+                              className="border-t border-[#64748B]/20 p-4 bg-[#2D6D6A]/10 flex items-center justify-between"
+                            >
+                              <div className="flex items-center gap-2">
+                                <Heart className="w-4 h-4 text-[#2D6D6A] fill-[#2D6D6A]/30" />
+                                <span className="text-sm font-black text-[#F1F3F4] uppercase tracking-wider">Cardio</span>
+                              </div>
+                              <div className="text-xs font-bold text-[#64748B]">
+                                <span className="text-[#F1F3F4] font-black">{cardio.duration_minutes} min</span>
+                                {cardio.distance_miles && (
+                                  <> • <span className="text-[#2D6D6A]">{cardio.distance_miles} mi</span></>
+                                )}
+                                {cardio.avg_heart_rate && (
+                                  <> • <span className="text-[#FF6A2E]">{cardio.avg_heart_rate} bpm</span></>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+
                       </div>
                     </div>
                   )
@@ -692,11 +683,8 @@ export default function Home() {
                 ))}
               </div>
             )}
-          </section>
-        )}
-      </div>
 
-      <div className="bg-neutral-900/40 border border-[#2D6D6A]/30 rounded-xl p-4 shadow-md mt-6">
+            <div className="bg-neutral-900/40 border border-[#2D6D6A]/30 rounded-xl p-4 shadow-md mt-6">
   <div className="flex justify-between items-center mb-4">
     <h3 className="text-xs font-black text-[#2D6D6A] uppercase tracking-widest flex items-center gap-2">
       <Heart className="w-4 h-4 fill-[#2D6D6A]" /> Cardio Engine
@@ -719,6 +707,9 @@ export default function Home() {
     </div>
   </div>
 </div>
+          </section>
+        )}
+      </div>
 
       {/* Navigation */}
       <nav className="sticky bottom-0 grid grid-cols-4 gap-1 bg-[#0D0D0F] border-t border-[#64748B]/30 p-2 text-[10px] font-bold uppercase shadow-lg z-50">
