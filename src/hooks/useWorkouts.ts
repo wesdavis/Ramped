@@ -149,14 +149,19 @@ export function useWorkouts() {
     }
   }
 
-  const fetchCalendarHistory = async () => {
+  const fetchCalendarHistory = async (daysBack = 90) => {
+    const pastDate = new Date()
+    pastDate.setDate(pastDate.getDate() - daysBack)
+    const cutoffDate = pastDate.toLocaleDateString('en-CA')
+
     try {
       const { data, error } = await supabase
         .from('sets')
         .select('*')
+        .gte('local_date', cutoffDate) 
         .order('local_date', { ascending: false })
         .order('created_at', { ascending: true })
-
+        
       if (error) throw error
       return data
     } catch (error) {
@@ -649,6 +654,7 @@ const COMMON_EXERCISES = Object.values(EXERCISES_BY_GROUP).flat()
 
   const fetchPersonalRecords = async () => {
     try {
+      // Only pull the 3 specific columns needed, bypassing the heavy row data
       const { data, error } = await supabase
         .from('sets')
         .select('muscle_group, exercise_name, weight')
@@ -656,17 +662,18 @@ const COMMON_EXERCISES = Object.values(EXERCISES_BY_GROUP).flat()
       if (error) throw error
       if (!data) return {}
 
-      // Group by muscle group, then find the max weight per exercise
+      // Reduce the lightweight payload into the PR object on the frontend
       const prs: Record<string, Record<string, number>> = {}
-
+      
       data.forEach((set) => {
-        const mg = set.muscle_group
-        const ex = set.exercise_name
-        const wt = set.weight
+        const group = set.muscle_group
+        const exercise = set.exercise_name
+        const weight = Number(set.weight)
 
-        if (!prs[mg]) prs[mg] = {}
-        if (!prs[mg][ex] || wt > prs[mg][ex]) {
-          prs[mg][ex] = wt
+        if (!prs[group]) prs[group] = {}
+        
+        if (!prs[group][exercise] || weight > prs[group][exercise]) {
+          prs[group][exercise] = weight
         }
       })
 
