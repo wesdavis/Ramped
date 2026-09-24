@@ -541,7 +541,10 @@ export default function Home() {
               <p className="text-[#64748B] text-center text-sm py-8">No workouts logged yet.</p>
             ) : (
               <div className="space-y-3">
-  {Array.from(new Set(calendarHistory.map(set => set.local_date))).map(date => {
+  {Array.from(new Set([
+  ...calendarHistory.map(set => set.local_date),
+  ...cardioHistory.map(cardio => cardio.local_date)
+])).sort().reverse().map(date => {
     const daySets = calendarHistory.filter(s => s.local_date === date)
     const dayCardio = cardioHistory.filter(c => c.local_date === date)
     
